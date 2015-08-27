@@ -1,4 +1,4 @@
-s2sd=require 'Seq2SeqDataset'
+require 'Seq2SeqDataset'
 
-d = s2sd.create()
+d = S2SDataset()
 

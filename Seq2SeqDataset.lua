@@ -1,37 +1,68 @@
 -- Modified from https://github.com/karpathy/char-rnn
 -- this function taken from http://stackoverflow.com/questions/15706270/sort-a-table-in-lua
-    local function spairs(t, order)
-        -- collect the keys
-        local keys = {}
-        for k in pairs(t) do keys[#keys+1] = k end
+local function spairs(t, order)
+    -- collect the keys
+    local keys = {}
+    for k in pairs(t) do keys[#keys+1] = k end
 
-        -- if order function given, sort by it by passing the table and keys a, b,
-        -- otherwise just sort the keys 
-        if order then
-            table.sort(keys, function(a,b) return order(t, a, b) end)
-        else
-            table.sort(keys)
-        end
-
-        -- return the iterator function
-        local i = 0
-        return function()
-            i = i + 1
-            if keys[i] then
-                return keys[i], t[keys[i]]
-            end
-        end
+    -- if order function given, sort by it by passing the table and keys a, b,
+    -- otherwise just sort the keys 
+    if order then
+        table.sort(keys, function(a,b) return order(t, a, b) end)
+    else
+        table.sort(keys)
     end
 
-local Seq2SeqDataset = {}
-Seq2SeqDataset.__index = Seq2SeqDataset
+    -- return the iterator function
+    local i = 0
+    return function()
+        i = i + 1
+        if keys[i] then
+            return keys[i], t[keys[i]]
+        end
+    end
+end
 
-function Seq2SeqDataset.create(data_dir, batch_size, truncate_source_vocab_to, truncate_target_vocab_to)
+-- *** STATIC methods ***
+local function i2v_to_v2i(i2v)
+  local v2i = {}
+  for i,v in ipairs(i2v) do
+    v2i[v] = i
+  end
+  return v2i
+end
+
+local function text_to_vocab(in_textfile, out_countsfile, out_lengthsfile)
+    local timer = torch.Timer()
+    print('loading text file...')
+    -- create vocabulary if it doesn't exist yet
+    print('creating vocabulary mapping...')
+    -- record all tokens to a set
+    -- also record line lengths for batching purposes later
+    local counts = {}
+    local lengths = {}
+    for rawdata in io.lines(in_textfile) do
+        local length = 0
+        for token in rawdata:gmatch('%S+') do -- note: assumes that splitting purely by spaces is correct. Do your own pre-processing accordingly.
+            if not counts[token] then counts[token] = 1 else counts[token] = counts[token] + 1 end
+            length = length + 1
+        end
+        table.insert(lengths, length)
+    end
+
+     
+    -- save output preprocessed files
+    print('saving '.. out_countsfile)
+    torch.save(out_countsfile, counts)
+    print('saving ' .. out_lengthsfile)
+    torch.save(out_lengthsfile, lengths)
+end
+
+
+local Seq2SeqDataset = torch.class('S2SDataset')
+
+function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, truncate_target_vocab_to)
     -- split_fractions is e.g. {0.9, 0.05, 0.05}
-
-    local self = {}
-    setmetatable(self, Seq2SeqDataset)
-
     local data_dir = data_dir or "test_datadir"
     local batchsize = batchsize or 2
     local truncate_source_vocab_to = truncate_source_vocab_to or 10000
@@ -74,8 +105,8 @@ function Seq2SeqDataset.create(data_dir, batch_size, truncate_source_vocab_to, t
     if run_prepro then
         -- preprocess into vocab file, vocab counts file, source lengths file, and target lengths file
         print('one-time setup: preprocessing input text files ' .. source_file .. ' and '.. target_file..'...')
-        Seq2SeqDataset.text_to_vocab(source_file, source_counts_file, source_lengths_file)
-        Seq2SeqDataset.text_to_vocab(target_file, target_counts_file, target_lengths_file)
+        text_to_vocab(source_file, source_counts_file, source_lengths_file)
+        text_to_vocab(target_file, target_counts_file, target_lengths_file)
     end
 
     print('loading preprocessed files...')
@@ -106,8 +137,8 @@ function Seq2SeqDataset.create(data_dir, batch_size, truncate_source_vocab_to, t
     end
 
 
-    self.source_v2i = Seq2SeqDataset.i2v_to_v2i(self.source_i2v)
-    self.target_v2i = Seq2SeqDataset.i2v_to_v2i(self.target_i2v)
+    self.source_v2i = i2v_to_v2i(self.source_i2v)
+    self.target_v2i = i2v_to_v2i(self.target_i2v)
 
     -- add pad and unk
     table.insert(self.source_i2v, '__UNK__')
@@ -221,40 +252,4 @@ function Seq2SeqDataset:next_batch(split_index)
     return self.x_batches[ix], self.y_batches[ix]
 end
 
--- *** STATIC methods ***
-function Seq2SeqDataset.i2v_to_v2i(i2v)
-  local v2i = {}
-  for i,v in ipairs(i2v) do
-    v2i[v] = i
-  end
-  return v2i
-end
-
-function Seq2SeqDataset.text_to_vocab(in_textfile, out_countsfile, out_lengthsfile)
-    local timer = torch.Timer()
-    print('loading text file...')
-    -- create vocabulary if it doesn't exist yet
-    print('creating vocabulary mapping...')
-    -- record all tokens to a set
-    -- also record line lengths for batching purposes later
-    local counts = {}
-    local lengths = {}
-    for rawdata in io.lines(in_textfile) do
-        local length = 0
-        for token in rawdata:gmatch('%S+') do -- note: assumes that splitting purely by spaces is correct. Do your own pre-processing accordingly.
-            if not counts[token] then counts[token] = 1 else counts[token] = counts[token] + 1 end
-            length = length + 1
-        end
-        table.insert(lengths, length)
-    end
-
-     
-    -- save output preprocessed files
-    print('saving '.. out_countsfile)
-    torch.save(out_countsfile, counts)
-    print('saving ' .. out_lengthsfile)
-    torch.save(out_lengthsfile, lengths)
-end
-
-return Seq2SeqDataset
 
