@@ -1,8 +1,8 @@
 require 'nn'
 require 'nngraph'
 
--- Equations taken from Graves' paper: http://arxiv.org/pdf/1308.0850v5.pdf
--- but not constraining the weights from the cell to gate vectors to be diagonal
+-- Equations taken from Graves' paper: http://arxiv.org/pdf/1308.0850v5.pdf, but not constraining the weights from the cell to gate vectors to be diagonal
+-- This formulation is often referred to as "LSTM with peephole connections", since the previous state ctm1 can influence the gates.
 -- notation: 
 -- xt: input at time t
 -- stm1: state of the LSTM at time t-1, which is the concatenation of the htm1 and ctm1
