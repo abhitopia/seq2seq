@@ -1,8 +1,8 @@
---require 'Seq2SeqDataset'
+require 'Seq2SeqDataset'
 
---d = S2SDataset()
-require 'Recurrent'
-require 'GRU'
-require 'Extra'
-paths.dofile('basic.lua')
-
+d = Seq2SeqDataset()
+--require 'Recurrent'
+--require 'GRU'
+--require 'Extra'
+--paths.dofile('basic.lua')
+--

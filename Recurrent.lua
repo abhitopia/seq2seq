@@ -14,7 +14,7 @@ function Recurrent:__init(step_module, h0, max_sequence_length, reverse,learn_h0
   self.reverse = reverse or false
   self.learn_h0 = learn_h0 or false
   self.bias=h0
-  self.gradBias = torch.Tensor()
+  self.gradBias = torch.Tensor():resizeAs(self.bias)
   self.modules = {}
 end
 
@@ -96,6 +96,8 @@ end
 
 function Recurrent:updateGradInput_(h0, input, gradOutput)
   self.gradInputTensor:resize(input:size())
+  -- there is some lack of clarity here; h0 passed in will always already be expanded, but the gradient of the original h0
+  -- should not be expanded, so that the :copy(dexpand(...)) works. maybe refactor some stuf..
   self.gradh0:resize(h0:size())
 
   local tdim = input:dim() - 1
@@ -116,8 +118,7 @@ function Recurrent:updateGradInput_(h0, input, gradOutput)
     else
         -- end of backprop, go to initial hidden state
         -- in reality, this might be better put in accGradParameters, but that seems sort of pointless, since I'm not sure what that seperation actually does (since backward() just calls both anyways)
-        expandpattern=torch.ByteTensor(dhtm1:dim()):zero();expandpattern[dhtm1:dim()]=1
-        self.gradh0:copy(dexpand(dhtm1, expandpattern))
+        self.gradh0:copy(dhtm1)
     end
     self.gradInputTensor:select(tdim, t):copy(dinputt)
   end
@@ -139,8 +140,8 @@ end
 
 function Recurrent:setupTableInput()
   if not self.set then
-    self.gradInputTensor = torch.Tensor()
-    self.gradh0 = torch.Tensor()
+    self.gradInputTensor = self.gradInput.new()
+    self.gradh0 = self.gradInput.new()
     self.gradInput = {self.gradh0, self.gradInputTensor}
     self.set=true
   else
@@ -152,9 +153,9 @@ end
 
 function Recurrent:setupTensorInput()
   if not self.set then
-    self.gradInputTensor=torch.Tensor()
-    self.gradInput=gradInputTensor
-    self.gradh0=self.gradBias
+    self.gradInputTensor=self.gradInput
+    -- this is a bit of a hack
+    self.gradh0=self.bias.new()
     self.set=true
   else
     if (type(self.gradInput)=='table') then
@@ -165,10 +166,23 @@ end
 
 function Recurrent:updateGradInput(input, gradOutput)
   if type(input)=='table' then
-    return self.updateGradInput_(input[1], input[2], gradOutput)
+    print('recurrent updategradinput: table')
+    print(gradOutput:type())
+    local one, two = self:updateGradInput_(input[1], input[2], gradOutput)
+
+    print(self.gradInput[1]:type())
+    print(self.gradInput[2]:type())
+    return self.gradInput
   else
-    local gradh0, gradInput = self:updateGradInput_(self.bias, input, gradOutput)
+    print('recurrent updategradinput: tensor')
+    print(gradOutput:type())
+
+    if input:dim() == 3 then h0 = torch.repeatTensor(self.bias, input:size(1), 1) else h0=self.bias end
+    local gradh0, gradInput = self:updateGradInput_(h0, input, gradOutput)
+    expandpattern=torch.ByteTensor(gradh0:dim()):zero();expandpattern[gradh0:dim()]=1
+    self.gradBias:copy(dexpand(gradh0,expandpattern))
     -- this is the same as gradInput
+    print(self.gradInput:type())
     return self.gradInput
   end
 end

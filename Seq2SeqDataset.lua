@@ -49,8 +49,6 @@ local function text_to_vocab(in_textfile, out_countsfile, out_lengthsfile)
         end
         table.insert(lengths, length)
     end
-
-     
     -- save output preprocessed files
     print('saving '.. out_countsfile)
     torch.save(out_countsfile, counts)
@@ -59,9 +57,9 @@ local function text_to_vocab(in_textfile, out_countsfile, out_lengthsfile)
 end
 
 
-local Seq2SeqDataset = torch.class('S2SDataset')
+local Seq2SeqDataset = torch.class('Seq2SeqDataset')
 
-function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, truncate_target_vocab_to)
+function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, truncate_target_vocab_to, loadvocab)
     -- split_fractions is e.g. {0.9, 0.05, 0.05}
     local data_dir = data_dir or "test_datadir"
     local batchsize = batchsize or 2
@@ -74,6 +72,7 @@ function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, t
     local target_counts_file = path.join(data_dir, 'target_vocab_counts.t7')
     local source_lengths_file = path.join(data_dir, 'source_lengths.t7')
     local target_lengths_file = path.join(data_dir, 'target_lengths.t7')
+    local loadvocab = loadvocab or false
 
     -- fetch file attributes to determine if we need to rerun preprocessing
     local run_prepro = false
@@ -122,34 +121,48 @@ function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, t
     -- truncate vocab
     -- TODO; remove vocab from preproc!
     -- TODO: add split token to preproc for char-seq2seq possibility?
-    self.source_i2v = {}
-    print("YOU SHOULD MAKE SURE THAT THIS SPAIRS FUNCTION WORKS YOU JUST COPY PASTED IT")
-    for k,v in spairs(source_counts, function(t,a,b) return t[a]>t[b] end) do
-        table.insert(self.source_i2v, k)
-        if #self.source_i2v >= truncate_source_vocab_to then break end
+    if not loadvocab then 
+      self.source_i2v = {}
+      print("YOU SHOULD MAKE SURE THAT THIS SPAIRS FUNCTION WORKS YOU JUST COPY PASTED IT")
+      for k,v in spairs(source_counts, function(t,a,b) return t[a]>t[b] end) do
+          table.insert(self.source_i2v, k)
+          if #self.source_i2v >= truncate_source_vocab_to then break end
+      end
+
+      self.target_i2v = {}
+      print("YOU SHOULD MAKE SURE THAT THIS SPAIRS FUNCTION WORKS YOU JUST COPY PASTED IT")
+      for k,v in spairs(target_counts, function(t,a,b) return t[a]>t[b] end) do
+          table.insert(self.target_i2v, k)
+          if #self.target_i2v >= truncate_target_vocab_to then break end
+      end
+
+
+      self.source_v2i = i2v_to_v2i(self.source_i2v)
+      self.target_v2i = i2v_to_v2i(self.target_i2v)
+
+      -- add pad and unk
+      table.insert(self.source_i2v, '__UNK__')
+      self.source_v2i['__UNK__'] = #self.source_i2v
+      table.insert(self.source_i2v, '__PAD__')
+      self.source_v2i['__PAD__'] = #self.source_i2v
+
+      table.insert(self.target_i2v, '__UNK__')
+      self.target_v2i['__UNK__'] = #self.target_i2v
+      table.insert(self.target_i2v, '__PAD__')
+      self.target_v2i['__PAD__'] = #self.target_i2v
+      -- target also needs start-of-sequence and end-of-sequence tokens
+      table.insert(self.target_i2v, '__SOS__')
+      self.target_v2i['__SOS__'] = #self.target_i2v
+      table.insert(self.target_i2v, '__EOS__')
+      self.target_v2i['__EOS__'] = #self.target_i2v
+    else
+      -- dev/test set, uses train vocab.
+      self.source_v2i=loadvocab.source_v2i
+      self.source_i2v=loadvocab.source_i2v
+      self.target_v2i=loadvocab.target_v2i
+      self.target_i2v=loadvocab.target_i2v
     end
 
-    self.target_i2v = {}
-    print("YOU SHOULD MAKE SURE THAT THIS SPAIRS FUNCTION WORKS YOU JUST COPY PASTED IT")
-    for k,v in spairs(target_counts, function(t,a,b) return t[a]>t[b] end) do
-        table.insert(self.target_i2v, k)
-        if #self.target_i2v >= truncate_target_vocab_to then break end
-    end
-
-
-    self.source_v2i = i2v_to_v2i(self.source_i2v)
-    self.target_v2i = i2v_to_v2i(self.target_i2v)
-
-    -- add pad and unk
-    table.insert(self.source_i2v, '__UNK__')
-    self.source_v2i['__UNK__'] = #self.source_i2v
-    table.insert(self.source_i2v, '__PAD__')
-    self.source_v2i['__PAD__'] = #self.source_i2v
-
-    table.insert(self.target_i2v, '__UNK__')
-    self.target_v2i['__UNK__'] = #self.target_i2v
-    table.insert(self.target_i2v, '__PAD__')
-    self.target_v2i['__PAD__'] = #self.target_i2v
 
 
     local sum_lengths = {}
@@ -159,12 +172,16 @@ function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, t
 
     local batch_assignments = {}
     local batch_offsets={}
-    local batch_source_maxlens = {}
-    local batch_target_maxlens = {}
+    local batch_source_maxlens = {[0]=0} -- bit of a hack for the max_seq_len stuff
+    local batch_target_maxlens = {[0]=0} -- same here
+    self.source_max_sequence_length = 0
+    self.target_max_sequence_length = 0
     local curr_batch = 0
     local in_curr_batch= batchsize
     for k,v in spairs(sum_lengths, function(t,a,b) return t[a]>t[b] end) do
       if in_curr_batch == batchsize then
+        if batch_source_maxlens[curr_batch] > self.source_max_sequence_length then self.source_max_sequence_length=batch_source_maxlens[curr_batch] end
+        if batch_target_maxlens[curr_batch] > self.target_max_sequence_length then self.target_max_sequence_length=batch_target_maxlens[curr_batch] end
         curr_batch=curr_batch+1
         in_curr_batch=0
         batch_source_maxlens[curr_batch] = 0
@@ -187,12 +204,11 @@ function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, t
     local spad = self.source_v2i['__PAD__']
     local tpad = self.target_v2i['__PAD__']
     for i=1,curr_batch do
-      table.insert(self.source_batches, torch.ShortTensor(batchsize, batch_source_maxlens[i]):fill(spad)) -- 
-      table.insert(self.target_batches, torch.ShortTensor(batchsize, batch_target_maxlens[i]):fill(tpad))
+      table.insert(self.source_batches, torch.ShortTensor(batchsize, batch_source_maxlens[i]):fill(spad)) 
+      table.insert(self.target_batches, torch.ShortTensor(batchsize, batch_target_maxlens[i]+2):fill(tpad)) -- +2 is for __SOS__, __EOS__
     end
 
     -- now read through source and target again and fill up the tensors
-    -- TODO: I'm here. loop through and fill tensors.
     print('reading texts...')
     local curr_line = 1
     for rawdata in io.lines(source_file) do
@@ -209,7 +225,7 @@ function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, t
 
     local curr_line = 1
     for rawdata in io.lines(target_file) do
-        local curr_idx = 1
+        local curr_idx = 2 -- start at two to leave room for __SOS__
         local batch = batch_assignments[curr_line]
         local batch_offset = batch_offsets[curr_line]
         for token in rawdata:gmatch('%S+') do -- note: assumes that splitting purely by spaces is correct. Do your own pre-processing accordingly.
@@ -217,6 +233,9 @@ function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, t
             self.target_batches[batch][batch_offset][curr_idx] = token_idx
             curr_idx = curr_idx + 1
         end
+        -- add __SOS__, __EOS__
+        self.target_batches[batch][batch_offset][1] = self.target_v2i['__SOS__']
+        self.target_batches[batch][batch_offset][curr_idx] = self.target_v2i['__EOS__']
         curr_line = curr_line + 1
     end
 
@@ -224,32 +243,24 @@ function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, t
     print("data loading done.")
     -- TODO: deleted here a lot of split stuff. maybe deal with that later.
     
+    self.curr_batch_index=1
     collectgarbage()
     return self
 end
 
-function Seq2SeqDataset:reset_batch_pointer(split_index, batch_index)
-    batch_index = batch_index or 0
-    self.batch_ix[split_index] = batch_index
+-- TODO: shuffling
+function Seq2SeqDataset:reset_batches()
+  self.curr_batch_index=1
 end
 
 function Seq2SeqDataset:next_batch(split_index)
-    if self.split_sizes[split_index] == 0 then
-        -- perform a check here to make sure the user isn't screwing something up
-        local split_names = {'train', 'val', 'test'}
-        print('ERROR. Code requested a batch for split ' .. split_names[split_index] .. ', but this split has no data.')
-        os.exit() -- crash violently
-    end
-    -- split_index is integer: 1 = train, 2 = val, 3 = test
-    self.batch_ix[split_index] = self.batch_ix[split_index] + 1
-    if self.batch_ix[split_index] > self.split_sizes[split_index] then
-        self.batch_ix[split_index] = 1 -- cycle around to beginning
-    end
-    -- pull out the correct next batch
-    local ix = self.batch_ix[split_index]
-    if split_index == 2 then ix = ix + self.ntrain end -- offset by train set size
-    if split_index == 3 then ix = ix + self.ntrain + self.nval end -- offset by train + val
-    return self.x_batches[ix], self.y_batches[ix]
+  if self.curr_batch_index > #self.source_batches then
+    self:reset_batches()
+  else
+    self.curr_batch_index = self.curr_batch_index+1
+    --TODO: shuffling
+    return self.source_batches[self.curr_batch_index-1], self.target_batches[self.curr_batch_index-1]
+  end
 end
 
 
