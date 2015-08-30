@@ -243,13 +243,15 @@ function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, t
     print("data loading done.")
     -- TODO: deleted here a lot of split stuff. maybe deal with that later.
     
-    self.curr_batch_index=1
+    self:reset_batches()
     collectgarbage()
     return self
 end
 
--- TODO: shuffling
 function Seq2SeqDataset:reset_batches()
+  -- shuffle batches
+  self.curr_batch_order = torch.randperm(#self.source_batches)
+  -- reset idx
   self.curr_batch_index=1
 end
 
@@ -257,9 +259,9 @@ function Seq2SeqDataset:next_batch(split_index)
   if self.curr_batch_index > #self.source_batches then
     self:reset_batches()
   else
+    local real_index = self.curr_batch_order[self.curr_batch_index]
     self.curr_batch_index = self.curr_batch_index+1
-    --TODO: shuffling
-    return self.source_batches[self.curr_batch_index-1], self.target_batches[self.curr_batch_index-1]
+    return self.source_batches[real_index], self.target_batches[real_index]
   end
 end
 

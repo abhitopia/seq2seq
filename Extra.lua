@@ -10,8 +10,6 @@ NOTE: it has NOT been tested on the case where it needs to pick up tensors that 
 local Module = torch.getmetatable('nn.Module')
 
 function Module:sharedCloneManyTimes(ntimes,...)
-  print(ntimes)
-  print(...)
   -- ... can be some combination of 'params' and 'gradParams', i just like that syntax a bit
   local dotargs = {...}
   local argvalset = {}
@@ -254,11 +252,8 @@ function Unbatch:updateOutput(input)
 end
 
 function Unbatch:updateGradInput(input, gradOutput)
-  print("unbatch back")
-  print(gradOutput:type())
   self.gradInput:resizeAs(gradOutput):copy(gradOutput)
   self.gradInput:resize(input:size())
-  print(gradOutput:type())
   return self.gradInput
 end
 
@@ -279,12 +274,9 @@ function Laststate:updateOutput(input)
 end
 
 function Laststate:updateGradInput(input, gradOutput)
-  print('laststate back')
-  print(gradOutput:type())
   if input:dim() == self.expected + 1 then useaxis = self.axis+1 else useaxis = self.axis end
   self.gradInput:resizeAs(input):zero()
   self.gradInput:select(useaxis, self.gradInput:size(useaxis)):copy(gradOutput)
-  print(self.gradInput:type())
   return self.gradInput
 end
 

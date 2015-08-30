@@ -187,7 +187,6 @@ function feval(x)
     local out = model:forward({source, target_no_eos})
     local cost = criterion:forward(out, target_no_sos)
     local dout = criterion:backward(out, target_no_sos)
-    print(dout)
     local din = model:backward({source, target_no_eos}, dout)
     -- clip gradient element-wise
     grad_params:clamp(-opt.grad_clip, opt.grad_clip)

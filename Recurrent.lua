@@ -166,23 +166,13 @@ end
 
 function Recurrent:updateGradInput(input, gradOutput)
   if type(input)=='table' then
-    print('recurrent updategradinput: table')
-    print(gradOutput:type())
     local one, two = self:updateGradInput_(input[1], input[2], gradOutput)
-
-    print(self.gradInput[1]:type())
-    print(self.gradInput[2]:type())
     return self.gradInput
   else
-    print('recurrent updategradinput: tensor')
-    print(gradOutput:type())
-
     if input:dim() == 3 then h0 = torch.repeatTensor(self.bias, input:size(1), 1) else h0=self.bias end
     local gradh0, gradInput = self:updateGradInput_(h0, input, gradOutput)
     expandpattern=torch.ByteTensor(gradh0:dim()):zero();expandpattern[gradh0:dim()]=1
     self.gradBias:copy(dexpand(gradh0,expandpattern))
-    -- this is the same as gradInput
-    print(self.gradInput:type())
     return self.gradInput
   end
 end
