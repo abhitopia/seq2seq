@@ -255,7 +255,7 @@ function Seq2SeqDataset:reset_batches()
   self.curr_batch_index=1
 end
 
-function Seq2SeqDataset:next_batch(split_index)
+function Seq2SeqDataset:next_batch()
   if self.curr_batch_index > #self.source_batches then
     self:reset_batches()
   else

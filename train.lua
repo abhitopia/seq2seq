@@ -52,6 +52,8 @@ cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get writ
 cmd:option('-savefile','binary_sentiment_basic','filename to autosave the checkpont to. Will be inside checkpoint_dir/. think of this as the name of the experiment')
 -- GPU/CPU
 cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
+-- misc
+cmd:option('-checkgrad', false, 'if true, will not actually train the network, but instead, will just check the gradient.')
 cmd:text()
 
 -- parse input params
@@ -158,6 +160,7 @@ print('number of parameters in the model: ' .. params:nElement())
 --end
 --
 -- do fwd/bwd and return loss, grad_params
+if opt.checkgrad then opt.grad_clip=100000000000 end -- hacky but needed to pass gradchecks
 function feval(x)
     if x ~= params then
         params:copy(x)
@@ -165,7 +168,7 @@ function feval(x)
     grad_params:zero()
 
     ------------------ get minibatch -------------------
-    local source, target = train_loader:next_batch(1)
+    local source, target = train_loader:next_batch()
     local token_dim = target:dim()
     -- this saves memory at the expense of time, when compared to just storing all these tensors in the loader.
     -- really, if the batch dimenson was trailing, or if the arrays were stored column major, this would be simpler,
@@ -192,6 +195,18 @@ function feval(x)
     grad_params:clamp(-opt.grad_clip, opt.grad_clip)
     return cost, grad_params
 end
+
+if opt.checkgrad then
+  local source,target=train_loader:next_batch()
+  function fakenextbatch()
+    return source,target
+  end
+  train_loader.next_batch = fakenextbatch
+  diff, _, _ = optim.checkgrad(feval, params, 1e-7)
+  print ("Gradient check done. Difference was: "..diff..". Exiting...")
+  os.exit()
+end
+
 
 -- start optimization here
 train_losses = {}
