@@ -197,12 +197,24 @@ function feval(x)
 end
 
 if opt.checkgrad then
+  local checkgrad = require 'modulegradcheck'
+  local source, target = train_loader:next_batch()
+  local token_dim = target:dim()
+  -- this saves memory at the expense of time, when compared to just storing all these tensors in the loader.
+  -- really, if the batch dimenson was trailing, or if the arrays were stored column major, this would be simpler,
+  -- as the desired memory would be contiguous anyways, and you'd get the best of both worlds.
+  local target_no_sos = target:narrow(token_dim, 2, target:size(token_dim)-1):contiguous()
+  target_no_sos:resize(target_no_sos:size(1)*target_no_sos:size(2))
+  local target_no_eos = target:narrow(token_dim, 1, target:size(token_dim)-1):contiguous()
+  checkgrad.moduleDictCheckGrad(model, criterion, {source, target_no_eos}, target_no_sos, true, true)
+
+
   local source,target=train_loader:next_batch()
   function fakenextbatch()
     return source,target
   end
   train_loader.next_batch = fakenextbatch
-  diff, _, _ = optim.checkgrad(feval, params, 1e-7)
+  diff, _, _ = optim.checkgrad(feval, params, 1e-8)
   print ("Gradient check done. Difference was: "..diff..". Exiting...")
   os.exit()
 end

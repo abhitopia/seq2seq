@@ -58,7 +58,7 @@ function gradcheck.moduleDictCheckGrad(mod, criterion, input, target, do_input, 
   if do_params == nil then do_params = true end
   if do_params then
     timer = torch.Timer()
-    diff, dc, dc_Est, thisdd = gradcheck.dictCheckgrad(feval, params, 1e-5)
+    diff, dc, dc_Est, thisdd = gradcheck.dictCheckgrad(feval, params, 1e-7)
     print ("parameter gradcheck done")
     print(thisdd)
   end
