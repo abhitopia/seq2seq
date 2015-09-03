@@ -59,7 +59,7 @@ end
 
 local Seq2SeqDataset = torch.class('Seq2SeqDataset')
 
-function Seq2SeqDataset:__init(data_dir, batch_size, truncate_source_vocab_to, truncate_target_vocab_to, loadvocab)
+function Seq2SeqDataset:__init(data_dir, batchsize, truncate_source_vocab_to, truncate_target_vocab_to, loadvocab)
     -- split_fractions is e.g. {0.9, 0.05, 0.05}
     local data_dir = data_dir or "test_datadir"
     local batchsize = batchsize or 2
@@ -258,11 +258,41 @@ end
 function Seq2SeqDataset:next_batch()
   if self.curr_batch_index > #self.source_batches then
     self:reset_batches()
-  else
-    local real_index = self.curr_batch_order[self.curr_batch_index]
-    self.curr_batch_index = self.curr_batch_index+1
-    return self.source_batches[real_index], self.target_batches[real_index]
+  end
+  local real_index = self.curr_batch_order[self.curr_batch_index]
+  self.curr_batch_index = self.curr_batch_index+1
+  return self.source_batches[real_index], self.target_batches[real_index]
+end
+
+function Seq2SeqDataset:tensor_to_string(tensor, ds)
+  assert(ds=='source' or ds=='target')
+  if tensor:dim() == 1 then
+    local str = ''
+    str = str..self[ds..'_i2v'][tensor[1]]
+    for i=2,tensor:size(1) do
+      str = str..' '..self[ds..'_i2v'][tensor[i]]
+    end
+    return str
+  elseif tensor:dim() == 2 then
+    local strs = {}
+    for i=1,tensor:size(1) do
+      local slice=tensor[i]
+      table.insert(strs, self:tensor_to_string(slice, ds))
+    end
+    return strs
   end
 end
 
-
+function Seq2SeqDataset:string_to_tensor(inputstr, ds)
+  assert(ds=='source' or ds=='target')
+  local tokens = {}
+  for token in inputstr:gmatch('%S+') do
+    table.insert(tokens, token)
+  end
+  local tensor = torch.Tensor(#tokens)
+  for i=1, #tokens do
+    tensor[i] = self[ds..'v2i'][tokens[i]]
+  end
+  return tensor
+end
+  

@@ -28,8 +28,8 @@ cmd:text('Options')
 cmd:option('-train_data_dir','data/SentimentPTBTrees/binary/train','train data directory, should contain source.txt and target.txt')
 cmd:option('-test_data_dir', 'data/SentimentPTBTrees/binary/test', 'test data directory, should contain source.txt and target.txt')
 cmd:option('-dev_data_dir', 'data/SentimentPTBTrees/binary/dev', 'dev data directory, should contain source.txt and target.txt')
-cmd:option('-truncate_source_vocab_to', 10000, 'max vocab size of the source text')
-cmd:option('-truncate_target_vocab_to', 10000, 'max vocab size of the target text')
+cmd:option('-truncate_source_vocab_to', 20000, 'max vocab size of the source text')
+cmd:option('-truncate_target_vocab_to', 20000, 'max vocab size of the target text')
 -- model params
 cmd:option('-model', 'basic', 'model to use')
 cmd:option('-embedding_size', 100, 'size of word embeddings')
@@ -47,7 +47,9 @@ cmd:option('-init_from', '', 'initialize network parameters from checkpoint at t
 -- bookkeeping
 cmd:option('-seed',05760506,'torch manual random number generator seed')
 cmd:option('-print_every',1,'how many steps/minibatches between printing out the loss')
-cmd:option('-eval_val_every',1000,'every how many iterations should we evaluate on validation data?')
+cmd:option('-iterations', 100000, 'how many iterations to go through')
+cmd:option('-eval_dev_every',1000,'every how many iterations should we evaluate on validation data?')
+cmd:option('-num_dev_batches', 10, 'how many batches to test the validation cost on')
 cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get written')
 cmd:option('-savefile','binary_sentiment_basic','filename to autosave the checkpont to. Will be inside checkpoint_dir/. think of this as the name of the experiment')
 -- GPU/CPU
@@ -79,9 +81,10 @@ if opt.gpuid >= 0 then
 end
 
 -- create the data loader classes
+print(opt.batch_size)
 local train_loader = Seq2SeqDataset(opt.train_data_dir, opt.batch_size, opt.truncate_source_vocab_to, opt.truncate_target_vocab_to)
---local packedvocab = {source_i2v=train_loader.source_i2v, source_v2i=train_loader.source_v2i, target_i2v=train_loader.target_i2v, target_v2i=train_loader.target_v2i}
---local dev_loader = Seq2SeqDataset(opt.dev_data_dir, 1, 0, 0, packedvocab)
+local packedvocab = {source_i2v=train_loader.source_i2v, source_v2i=train_loader.source_v2i, target_i2v=train_loader.target_i2v, target_v2i=train_loader.target_v2i}
+local dev_loader = Seq2SeqDataset(opt.dev_data_dir, 1, 0, 0, packedvocab)
 
 -- build model config
 local model_config = {}
@@ -118,50 +121,9 @@ params:uniform(-0.08, 0.08) -- small numbers uniform
 end
 
 print('number of parameters in the model: ' .. params:nElement())
-
----- evaluate the loss over an entire split
---function eval_split(split_index, max_batches)
---    print('evaluating loss over split index ' .. split_index)
---    local n = loader.split_sizes[split_index]
---    if max_batches ~= nil then n = math.min(max_batches, n) end
---
---    loader:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
---    local loss = 0
---    local rnn_state = {[0] = init_state}
---    
---    for i = 1,n do -- iterate over batches in the split
---        -- fetch a batch
---        local x, y = loader:next_batch(split_index)
---        if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
---            -- have to convert to float because integers can't be cuda()'d
---            x = x:float():cuda()
---            y = y:float():cuda()
---        end
---        if opt.gpuid >= 0 and opt.opencl == 1 then -- ship the input arrays to GPU
---            x = x:cl()
---            y = y:cl()
---        end
---        -- forward pass
---        for t=1,opt.seq_length do
---            clones.rnn[t]:evaluate() -- for dropout proper functioning
---            local lst = clones.rnn[t]:forward{x[{{}, t}], unpack(rnn_state[t-1])}
---            rnn_state[t] = {}
---            for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end
---            prediction = lst[#lst] 
---            loss = loss + clones.criterion[t]:forward(prediction, y[{{}, t}])
---        end
---        -- carry over lstm state
---        rnn_state[0] = rnn_state[#rnn_state]
---        print(i .. '/' .. n .. '...')
---    end
---
---    loss = loss / opt.seq_length / n
---    return loss
---end
---
 -- do fwd/bwd and return loss, grad_params
 if opt.checkgrad then opt.grad_clip=100000000000 end -- hacky but needed to pass gradchecks
-function feval(x)
+function ftrain(x)
     if x ~= params then
         params:copy(x)
     end
@@ -196,6 +158,40 @@ function feval(x)
     return cost, grad_params
 end
 
+function fdev(x, num_batches)
+    if x ~= params then
+        params:copy(x)
+    end
+    local total_cost=0
+    for i=1,num_batches do
+      ------------------ get minibatch -------------------
+      local source, target = dev_loader:next_batch()
+      local token_dim = target:dim()
+      -- this saves memory at the expense of time, when compared to just storing all these tensors in the loader.
+      -- really, if the batch dimenson was trailing, or if the arrays were stored column major, this would be simpler,
+      -- as the desired memory would be contiguous anyways, and you'd get the best of both worlds.
+      local target_no_sos = target:narrow(token_dim, 2, target:size(token_dim)-1):contiguous()
+      target_no_sos:resize(target_no_sos:size(1)*target_no_sos:size(2))
+      local target_no_eos = target:narrow(token_dim, 1, target:size(token_dim)-1):contiguous()
+      if opt.gpuid >= 0 then -- ship the input arrays to GPU
+          -- have to convert to float because integers can't be cuda()'d
+          source = source:float():cuda()
+          target_no_sos = target_no_sos:float():cuda()
+          target_no_eos = target_no_eos:float():cuda()
+      elseif opt.real == 'float' then
+          source = source:float()
+          target_no_sos = target_no_sos:float()
+          target_no_eos = target_no_eos:float()
+      end
+      ------------------- forward/backward pass -------------------
+      local out = model:forward({source, target_no_eos})
+      local cost = criterion:forward(out, target_no_sos)
+      total_cost = total_cost + cost
+    end
+    return total_cost/num_batches
+end
+
+
 if opt.checkgrad then
   local checkgrad = require 'modulegradcheck'
   local source, target = train_loader:next_batch()
@@ -207,8 +203,6 @@ if opt.checkgrad then
   target_no_sos:resize(target_no_sos:size(1)*target_no_sos:size(2))
   local target_no_eos = target:narrow(token_dim, 1, target:size(token_dim)-1):contiguous()
   checkgrad.moduleDictCheckGrad(model, criterion, {source, target_no_eos}, target_no_sos, true, true)
-
-
   local source,target=train_loader:next_batch()
   function fakenextbatch()
     return source,target
@@ -222,17 +216,16 @@ end
 
 -- start optimization here
 train_losses = {}
-val_losses = {}
+dev_losses = {}
 -- TODO
 local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
-local iterations = 10000
-local iterations_per_epoch = 100
+local iterations = opt.iterations
 local loss0 = nil
 for i = 1, iterations do
     --local epoch = i / loader.ntrain
 
     local timer = torch.Timer()
-    local _, loss = optim.rmsprop(feval, params, optim_state)
+    local _, loss = optim.rmsprop(ftrain, params, optim_state)
     local time = timer:time().real
 
     local train_loss = loss[1] -- the loss is inside a list, pop it
@@ -248,27 +241,29 @@ for i = 1, iterations do
     --end
 
     -- every now and then or on last iteration
-    --if i % opt.eval_val_every == 0 or i == iterations then
-    --    -- evaluate loss on validation data
-    --    local val_loss = eval_split(2) -- 2 = validation
-    --    val_losses[i] = val_loss
-
-    --    local savefile = string.format('%s/lm_%s_epoch%.2f_%.4f.t7', opt.checkpoint_dir, opt.savefile, epoch, val_loss)
-    --    print('saving checkpoint to ' .. savefile)
-    --    local checkpoint = {}
-    --    checkpoint.protos = protos
-    --    checkpoint.opt = opt
-    --    checkpoint.train_losses = train_losses
-    --    checkpoint.val_loss = val_loss
-    --    checkpoint.val_losses = val_losses
-    --    checkpoint.i = i
-    --    checkpoint.epoch = epoch
-    --    checkpoint.vocab = loader.vocab_mapping
-    --    torch.save(savefile, checkpoint)
-    --end
+    if i % opt.eval_dev_every == 0 or i == iterations then
+        -- evaluate loss on validation data
+        local dev_loss = fdev(params, opt.num_dev_batches) -- 2 = validation
+        dev_losses[i] = dev_loss
+        print(string.format("%d/%d, dev_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, dev_loss, grad_params:norm() / params:norm(), time))
+        local savefile = string.format('%s/iter%d.t7', opt.checkpoint_dir, i)
+        print('saving checkpoint to ' .. savefile)
+        local checkpoint = {}
+        checkpoint.model = model
+        checkpoint.opt = opt
+        checkpoint.train_losses = train_losses
+        checkpoint.dev_losses = dev_losses
+        checkpoint.iteration = i
+        checkpoint.packedvocab = packedvocab
+        torch.save(savefile, checkpoint)
+        -- convenience file (for testing later)
+        local f = torch.DiskFile(string.format('%s/iterlast.t7', opt.checkpoint_dir), 'w')
+        f:writeInt(i)
+        f:close()
+    end
 
     if i % opt.print_every == 0 then
-       print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, 1, train_loss, grad_params:norm() / params:norm(), time))
+       print(string.format("%d/%d, train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, train_loss, grad_params:norm() / params:norm(), time))
     end
    
     if i % 10 == 0 then collectgarbage() end
