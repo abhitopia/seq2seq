@@ -62,6 +62,7 @@ function Recurrent:updateOutput_(h0, input)
 
   -- make sure we have enough clones
   if #self.modules < input:size(tdim) then
+    --print(input)
     self.max_sequence_length = math.max(self.max_sequence_length, input:size(tdim))
     print("Warning: We found an input of size "..input:size(tdim).." but the maximum sequence length given was "..self.max_sequence_length..". Making "..self.max_sequence_length-#self.modules.." new clones...")
     self:makeClones()

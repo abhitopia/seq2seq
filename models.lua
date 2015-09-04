@@ -30,7 +30,7 @@ function models.basic(model_config)
   local target_shifted_one = nn.Identity()()
   local embeddings = nn.LookupTable(target_vocab_size,embedding_size)
   local embedded = embeddings(target_shifted_one)
-  local decoder_ = nn.GRULMDecoder(embedding_size,hidden_size,target_max_sequence)
+  local decoder_ = nn.GRULMDecoder(embedding_size,hidden_size,target_max_sequence_length)
   local decoding = decoder_({encoding, embedded})
   local decoder = nn.gModule({encoding, target_shifted_one}, {decoding})
   

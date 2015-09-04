@@ -62,6 +62,7 @@ end
 --TODO: does this work
 function LMDecoder:updateOutput(input)
   print("Make sure this works!")
+--  print(input)
   if self.train then return nn.Recurrent.updateOutput(self,input) else return self:beamSearch(input) end
 end
 
