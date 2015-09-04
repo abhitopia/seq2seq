@@ -47,7 +47,7 @@ cmd:option('-init_from', '', 'initialize network parameters from checkpoint at t
 -- bookkeeping
 cmd:option('-seed',05760506,'torch manual random number generator seed')
 cmd:option('-print_every',1,'how many steps/minibatches between printing out the loss')
-cmd:option('-iterations', 100000, 'how many iterations to go through')
+cmd:option('-iterations', 10000, 'how many iterations to go through')
 cmd:option('-eval_dev_every',1000,'every how many iterations should we evaluate on validation data?')
 cmd:option('-num_dev_batches', 10, 'how many batches to test the validation cost on')
 cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get written')
