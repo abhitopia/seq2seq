@@ -1,5 +1,6 @@
 require 'nn'
 require 'nngraph'
+require 'Decoder'
 local function GRUStep(input_size, hidden_size)
   local xt = nn.Identity()()
   local htm1 = nn.Identity()()
@@ -27,6 +28,15 @@ end
 
 local GRU, parent = torch.class('nn.GRU','nn.Recurrent')
 function GRU:__init(input_size, hidden_size, sequence_len, reverse, h0, learn_h0)
+  local h0 = h0 or torch.zeros(hidden_size)
+  local function GRUStepCall()
+    return GRUStep(input_size, hidden_size)
+  end
+  parent.__init(self, GRUStepCall(), h0, sequence_len, reverse, learn_h0)
+end
+
+local LMGRU, parent = torch.class('nn.GRULMDecoder','nn.LMDecoder')
+function LMGRU:__init(input_size, hidden_size, sequence_len, reverse, h0, learn_h0)
   local h0 = h0 or torch.zeros(hidden_size)
   local function GRUStepCall()
     return GRUStep(input_size, hidden_size)

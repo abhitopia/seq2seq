@@ -94,10 +94,12 @@ model_config.source_max_sequence_length=train_loader.source_max_sequence_length
 model_config.target_max_sequence_length=train_loader.target_max_sequence_length
 model_config.hidden_size=opt.hidden_size
 model_config.embedding_size=opt.embedding_size
+model_config.EOS = train_loader.target_v2i['__EOS__']
 print('source vocab size: ' .. model_config.source_vocab_size)
 print('target vocab size: ' .. model_config.target_vocab_size)
 
 local model = models[opt.model](model_config)
+model:training()
 local criterion = nn.CrossEntropyCriterion()  -- TODO maybe add clever criterions like CTC
 
 -- make sure output directory exists

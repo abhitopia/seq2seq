@@ -28,8 +28,10 @@ function models.basic(model_config)
   --[[ Decoder: 1-layer GRU ]]
   local encoding = nn.Identity()()
   local target_shifted_one = nn.Identity()()
-  local embedded = nn.LookupTable(target_vocab_size,embedding_size)(target_shifted_one)
-  local decoding = nn.GRU(embedding_size,hidden_size,target_max_sequence_length)({encoding, embedded})
+  local embeddings = nn.LookupTable(target_vocab_size,embedding_size)
+  local embedded = embeddings(target_shifted_one)
+  local decoder_ = nn.GRULMDecoder(embedding_size,hidden_size,target_max_sequence)
+  local decoding = decoder_({encoding, embedded})
   local decoder = nn.gModule({encoding, target_shifted_one}, {decoding})
   
   --[[ Putting them together ]]
@@ -39,8 +41,13 @@ function models.basic(model_config)
   local decoding_ = decoder({encoding_, target_shifted_one_})
   -- nn linear and the criterions don't accept 3d input, so simply resize it to look like the batchsize is in fact (num_seqs * seq_length), this is the same math
   local unbatched = nn.Unbatch()(decoding_)
-  local preds = nn.Linear(hidden_size, target_vocab_size)(unbatched)
+  local predLinear = nn.Linear(hidden_size, target_vocab_size)
+  local preds = predLinear(unbatched)
   local model = nn.gModule({source, target_shifted_one_}, {preds})
+
+  decoder_:setLookupTable(embeddings)
+  decoder_:setSoftmaxLinear(predLinear)
+  decoder_:setEOS(model_config.EOS)
   return model
 end
 

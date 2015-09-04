@@ -8,6 +8,7 @@ local LMDecoder, parent = torch.class('nn.LMDecoder','nn.Recurrent')
 -- the input now only expects an initial state, nothing else, so an input_size vector.
 function LMDecoder:beamSearch(input)
   print("warning: only beam search of beamlength 1 is currently implemented.")
+  print("warning: only works on single inputs currently")
   local outputs = {}
 
   -- initialize h0
@@ -29,19 +30,33 @@ function LMDecoder:beamSearch(input)
   return outputs
 end
 
+function LMDecoder:setLookupTable(lookupTable)
+  self.lookupTable=lookupTable
+end
+
+function LMDecoder:setSoftmaxLinear(softmaxLinear)
+  self.softmaxLinear = softmaxLinear
+end
+
+function LMDecoder:setEOS(EOS)
+  self.EOS=EOS
+end
+
 -- this should perform a softmax classification and take the argmax
 function LMDecoder:sampleOutput(ht)
-  error("not implemented, either overwrite the function or set the decoder's sampleOutput function at instantiation time")
+  local pred = self.softmaxLinear:forward(ht)
+  local max, idx = pred:max()
+  return idx[1]
 end
 
 -- this should check if outputt == <EOS>
 function LMDecoder:endCondition(outputt)
-  error("not implemented, either overwrite the function or set the decoder's endCondition function at instantiation time")
+  return outputt==self.EOS
 end
 
 -- this should return the word embedding of the output
 function LMDecoder:nextInput(outputt)
-  error("not implemented, either overwrite the function or set the decoder's nextInput function at instantiation time")
+  return self.lookupTable:forward(outputt)
 end
 
 --TODO: does this work

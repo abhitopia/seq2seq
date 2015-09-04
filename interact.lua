@@ -60,7 +60,6 @@ cmd:text()
 -- parse input params
 opt = cmd:parse(arg)
 -- set model to evaluation mode
-opt.model:evaluate() --TODO: deal with this, make sure this script works.
 torch.manualSeed(opt.seed)
 -- overwrite -1 iteration with the most recent iteration
 if opt.iteration == -1 then
@@ -68,22 +67,25 @@ if opt.iteration == -1 then
   opt.iteration = f:readInt()
 end
 
-local checkpoint = torch.load(string.format("%s/iter%d", opt.checkpoint_dir, opt.iteration))
+
+local checkpoint = torch.load(string.format("%s/iter%d.00.t7", opt.checkpoint_dir, opt.iteration))
+
+checkpoint.model:evaluate() --TODO: deal with this, make sure this script works.
 local user_input
 io.write("Enter a source input (__DONE__ to end): ")
 io.flush()
 user_input = io.read()
-
-repeat
-  -- cool lua hack: can treat opt.packedvocab as a Seq2Seq dataset for this function because it only needs the correct v2i
-  local tensor = Seq2SeqDataset.string_to_tensor(opt.packedvocab, user_input, 'source')
-  local output = opt.model:forward(tensor)
-  -- same hack
-  local str = Seq2SeqDataset.tensor_to_string(opt.packedvocab, output,, 'target')
-  print(str)
-  print('\n')
-  io.write("Enter a source input (__DONE__ to end): ")
-  io.flush()
-  user_input = io.read()
-until user_input == "__DONE__"
-
+if not user_input=="__DONE__" then
+  repeat
+    -- cool lua hack: can treat opt.packedvocab as a Seq2Seq dataset for this function because it only needs the correct v2i
+    local tensor = Seq2SeqDataset.string_to_tensor(checkpoint.packedvocab, user_input, 'source')
+    local output = checkpoint.model:forward(tensor)
+    -- same hack
+    local str = Seq2SeqDataset.tensor_to_string(checkpoint.packedvocab, tensor, 'source')
+    print(str)
+    io.write("Enter a source input (__DONE__ to end): ")
+    io.flush()
+    user_input = io.read()
+  until user_input == "__DONE__"
+end
+  

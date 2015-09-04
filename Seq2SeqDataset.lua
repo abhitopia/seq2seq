@@ -291,7 +291,7 @@ function Seq2SeqDataset:string_to_tensor(inputstr, ds)
   end
   local tensor = torch.Tensor(#tokens)
   for i=1, #tokens do
-    tensor[i] = self[ds..'v2i'][tokens[i]]
+    tensor[i] = self[ds..'_v2i'][tokens[i]]
   end
   return tensor
 end
