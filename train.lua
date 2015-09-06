@@ -95,6 +95,7 @@ model_config.target_max_sequence_length=train_loader.target_max_sequence_length
 model_config.hidden_size=opt.hidden_size
 model_config.embedding_size=opt.embedding_size
 model_config.EOS = train_loader.target_v2i['__EOS__']
+model_config.SOS = train_loader.target_v2i['__SOS__']
 print('source vocab size: ' .. model_config.source_vocab_size)
 print('target vocab size: ' .. model_config.target_vocab_size)
 

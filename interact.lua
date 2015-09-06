@@ -13,6 +13,7 @@ require 'Recurrent'
 require 'GRU'
 require 'LSTM'
 require 'Seq2SeqDataset'
+require 'BeamSearch'
 models = require 'models'
 
 cmd = torch.CmdLine()
@@ -68,24 +69,27 @@ if opt.iteration == -1 then
 end
 
 
-local checkpoint = torch.load(string.format("%s/iter%d.00.t7", opt.checkpoint_dir, opt.iteration))
+local checkpoint = torch.load(string.format("%s/iter%d.t7", opt.checkpoint_dir, opt.iteration))
+local beamSearcher = BeamSearch(checkpoint.model.forwardnodes[8].data.module.forwardnodes[8].data.module.masterStepModule, checkpoint.model.forwardnodes[8].data.module.forwardnodes[7].data.module, checkpoint.model.forwardnodes[10].data.module, checkpoint.packedvocab.target_v2i['__SOS__'], checkpoint.packedvocab.target_v2i['__EOS__'])
+local encoder = checkpoint.model.forwardnodes[5].data.module
+print(encoder)
 
 checkpoint.model:evaluate() --TODO: deal with this, make sure this script works.
 local user_input
 io.write("Enter a source input (__DONE__ to end): ")
 io.flush()
 user_input = io.read()
-if not user_input=="__DONE__" then
-  repeat
-    -- cool lua hack: can treat opt.packedvocab as a Seq2Seq dataset for this function because it only needs the correct v2i
-    local tensor = Seq2SeqDataset.string_to_tensor(checkpoint.packedvocab, user_input, 'source')
-    local output = checkpoint.model:forward(tensor)
-    -- same hack
-    local str = Seq2SeqDataset.tensor_to_string(checkpoint.packedvocab, tensor, 'source')
-    print(str)
-    io.write("Enter a source input (__DONE__ to end): ")
-    io.flush()
-    user_input = io.read()
-  until user_input == "__DONE__"
-end
-  
+repeat
+  -- cool lua hack: can treat opt.packedvocab as a Seq2Seq dataset for this function because it only needs the correct v2i
+  local tensor = Seq2SeqDataset.string_to_tensor(checkpoint.packedvocab, user_input, 'source')
+  local encoding = encoder:forward(tensor)
+
+  local output = beamSearcher:forward(encoding)
+  -- same hack
+  local str = Seq2SeqDataset.tensor_to_string(checkpoint.packedvocab, output, 'target')
+  print(str)
+  io.write("Enter a source input (__DONE__ to end): ")
+  io.flush()
+  user_input = io.read()
+until user_input == "__DONE__"
+

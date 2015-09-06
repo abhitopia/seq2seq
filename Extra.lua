@@ -244,10 +244,11 @@ function Unbatch:__init(axis, expected)
 end
 
 function Unbatch:updateOutput(input)
-  assert(input:dim() == 3) --removelater 
-  -- copy and resize
-  self.output:resizeAs(input):copy(input)
-  self.output:resize(input:size(1)*input:size(2), input:size(3))
+  if input:dim()==3 then
+    -- copy and resize
+    self.output:resizeAs(input):copy(input)
+    self.output:resize(input:size(1)*input:size(2), input:size(3))
+  end
   return self.output
 end
 

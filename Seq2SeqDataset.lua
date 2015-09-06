@@ -268,6 +268,7 @@ function Seq2SeqDataset:tensor_to_string(tensor, ds)
   assert(ds=='source' or ds=='target')
   if tensor:dim() == 1 then
     local str = ''
+    print(tensor[1])
     str = str..self[ds..'_i2v'][tensor[1]]
     for i=2,tensor:size(1) do
       str = str..' '..self[ds..'_i2v'][tensor[i]]
