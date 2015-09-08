@@ -1,5 +1,4 @@
 require 'nn'
-require 'Recurrent'
 
 local BeamSearch = torch.class('BeamSearch')
 

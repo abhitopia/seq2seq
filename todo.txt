@@ -1,0 +1,9 @@
+TODOS:
+- scripts to dl/process all the languages i can find
+- some light cv scripts for sentiment
+- bleu script
+- plotting
+- run 4*3 recurrent tests
+- beam search width
+- delete unused options from all files
+- code big seq2seq

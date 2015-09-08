@@ -1,7 +1,7 @@
 require 'nn'
 require 'nngraph'
-require 'Recurrent'
-require 'Extra'
+--require 'Recurrent'
+--require 'Extra'
 
 -- A basic encoder-decoder architecture
 function models.basic(model_config)

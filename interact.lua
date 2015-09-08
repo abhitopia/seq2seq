@@ -9,12 +9,8 @@ kitofans@gmail.com
 require 'torch'
 require 'nn'
 require 'nngraph'
-require 'Recurrent'
-require 'GRU'
-require 'LSTM'
 require 'Seq2SeqDataset'
-require 'BeamSearch'
-models = require 'models'
+models = require 'models/'
 
 cmd = torch.CmdLine()
 cmd:text()

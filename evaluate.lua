@@ -10,12 +10,8 @@ require 'torch'
 require 'nn'
 require 'xlua'
 require 'nngraph'
-require 'Recurrent'
-require 'GRU'
-require 'LSTM'
 require 'Seq2SeqDataset'
-require 'BeamSearch'
-models = require 'models'
+models = require 'models/'
 
 cmd = torch.CmdLine()
 cmd:text()
