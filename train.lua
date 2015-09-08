@@ -99,7 +99,7 @@ model_config.SOS = train_loader.target_v2i['__SOS__']
 print('source vocab size: ' .. model_config.source_vocab_size)
 print('target vocab size: ' .. model_config.target_vocab_size)
 
-local model = models[opt.model](model_config)
+local model, embeddings, decoder, pred_linear = models[opt.model](model_config)
 model:training()
 local criterion = nn.CrossEntropyCriterion()  -- TODO maybe add clever criterions like CTC
 
@@ -253,6 +253,9 @@ for i = 1, iterations do
         print('saving checkpoint to ' .. savefile)
         local checkpoint = {}
         checkpoint.model = model
+        checkpoint.embeddings=embeddings
+        checkpoint.decoder=decoder
+        checkpoint.pred_linear=pred_linear
         checkpoint.opt = opt
         checkpoint.train_losses = train_losses
         checkpoint.dev_losses = dev_losses

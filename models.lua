@@ -45,7 +45,7 @@ function models.basic(model_config)
   local preds = predLinear(unbatched)
   local model = nn.gModule({source, target_shifted_one_}, {preds})
 
-  return model
+  return model, embeddings, decoder_, predLinear
 end
 
 return models
