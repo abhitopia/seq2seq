@@ -19,7 +19,6 @@ function BeamSearch:forward(input)
 
   local htm1 = input
   local inputt = self:firstInput()
-  local curr=1
 
   while true do
     local ht = self.stepModule:updateOutput({inputt, htm1})
@@ -28,7 +27,6 @@ function BeamSearch:forward(input)
     if self:endCondition(outputt) then break end
     inputt=self:nextInput(outputt)
     htm1=ht
-    curr=curr+1
   end
 
   return torch.Tensor(outputs):type('torch.ShortTensor')

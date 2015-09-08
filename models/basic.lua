@@ -2,8 +2,6 @@ require 'nn'
 require 'nngraph'
 require 'Recurrent'
 require 'Extra'
-utils = require 'utils/'
-models = {}
 
 -- A basic encoder-decoder architecture
 function models.basic(model_config)
@@ -46,5 +44,3 @@ function models.basic(model_config)
 
   return model, source_embeddings, encoder, target_embeddings, decoder_, predLinear
 end
-
-return models

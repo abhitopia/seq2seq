@@ -13,11 +13,10 @@ require 'nn'
 require 'nngraph'
 require 'optim'
 require 'Recurrent'
-require 'GRU'
-require 'LSTM'
 require 'lfs'
 require 'Seq2SeqDataset'
-models = require 'models'
+utils = require 'utils/'
+models = require 'models/'
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -35,6 +34,8 @@ cmd:option('-model', 'basic', 'model to use')
 cmd:option('-embedding_size', 100, 'size of word embeddings')
 cmd:option('-hidden_size', 200, 'hidden dimension of recurrent nets')
 -- optimization
+cmd:option('-source_glove_vectors', 'data/GloveVectors/glove.6B.100d.txt', 'where to load source glove vectors from')
+cmd:option('-target_glove_vectors', false, 'where to load target glove vectors from')
 cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
 cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
@@ -94,12 +95,19 @@ model_config.source_max_sequence_length=train_loader.source_max_sequence_length
 model_config.target_max_sequence_length=train_loader.target_max_sequence_length
 model_config.hidden_size=opt.hidden_size
 model_config.embedding_size=opt.embedding_size
-model_config.EOS = train_loader.target_v2i['__EOS__']
-model_config.SOS = train_loader.target_v2i['__SOS__']
+--model_config.EOS = train_loader.target_v2i['__EOS__']
+--model_config.SOS = train_loader.target_v2i['__SOS__']
 print('source vocab size: ' .. model_config.source_vocab_size)
 print('target vocab size: ' .. model_config.target_vocab_size)
 
-local model, embeddings, decoder, pred_linear = models[opt.model](model_config)
+local model, source_embeddings, encoder, target_embeddings, decoder, pred_linear = models[opt.model](model_config)
+if opt.source_glove_vectors then
+  utils.read_glove(opt.source_glove_vectors, source_embeddings.weight, train_loader.source_v2i)
+end
+if opt.target_glove_vectors then
+  utils.read_glove(opt.target_glove_vectors, target_embeddings.weight, train_loader.target_v2i)
+end
+
 model:training()
 local criterion = nn.CrossEntropyCriterion()  -- TODO maybe add clever criterions like CTC
 
@@ -253,7 +261,8 @@ for i = 1, iterations do
         print('saving checkpoint to ' .. savefile)
         local checkpoint = {}
         checkpoint.model = model
-        checkpoint.embeddings=embeddings
+        checkpoint.encoder=encoder
+        checkpoint.target_embeddings=target_embeddings
         checkpoint.decoder=decoder
         checkpoint.pred_linear=pred_linear
         checkpoint.opt = opt

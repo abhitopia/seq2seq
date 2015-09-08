@@ -237,3 +237,92 @@ function Recurrent:share(other, ...)
     end
     self:apply(modShare)
 end
+
+local function GRUStep(input_size, hidden_size)
+  local xt = nn.Identity()()
+  local htm1 = nn.Identity()()
+  local xr = nn.Linear(input_size, hidden_size)(xt)
+
+  local xu = nn.Linear(input_size, hidden_size)(xt)
+  local hr = nn.Linear(hidden_size, hidden_size)(htm1)
+  local hu = nn.Linear(hidden_size, hidden_size)(htm1)
+
+  local r = nn.Sigmoid()(nn.CAddTable()({xr, hr}))
+  local u = nn.Sigmoid()(nn.CAddTable()({xu,hu}))
+
+  local rh = nn.CMulTable()({htm1, r})
+  local from_h = nn.Linear(hidden_size, hidden_size)(rh)
+  local from_x = nn.Linear(input_size, hidden_size)(xt)
+
+  local htilde = nn.Tanh()(nn.CAddTable()({from_h, from_x}))
+
+  local zh = nn.CMulTable()({u, htilde})
+  local zhm1 = nn.CMulTable()({nn.AddConstant(1, false)(nn.MulConstant(-1, false)(u)), htm1})
+  local out = nn.CAddTable()({zh, zhm1})
+
+  return nn.gModule({xt,htm1},{out})
+end
+
+local GRU, parent = torch.class('nn.GRU','nn.Recurrent')
+function GRU:__init(input_size, hidden_size, sequence_len, reverse, h0, learn_h0)
+  local h0 = h0 or torch.zeros(hidden_size)
+  local function GRUStepCall()
+    return GRUStep(input_size, hidden_size)
+  end
+  parent.__init(self, GRUStepCall(), h0, sequence_len, reverse, learn_h0)
+end
+
+
+
+-- Equations taken from Graves' paper: http://arxiv.org/pdf/1308.0850v5.pdf, but not constraining the weights from the cell to gate vectors to be diagonal
+-- This formulation is often referred to as "LSTM with peephole connections", since the previous state ctm1 can influence the gates.
+-- notation: 
+-- xt: input at time t
+-- stm1: state of the LSTM at time t-1, which is the concatenation of the htm1 and ctm1
+-- htm1: actual output of the LSTM at time t-1
+-- ctm1: memory cell of the LSTM at time t-1
+local function LSTMStep(input_size, hidden_size, batched)
+  xt = nn.Identity()()
+  stm1 = nn.Identity()()
+  htm1 = nn.BatchNarrow(1,1,hidden_size/2,1)(stm1)
+  ctm1 = nn.BatchNarrow(1,(hidden_size/2)+1,hidden_size/2,1)(stm1)
+
+
+  -- compute the last state (hidden+cell)'s contribution to i,f in one go
+  if_stm1_contrib = nn.Linear(hidden_size, hidden_size/2*2)(stm1)
+  -- compute the input's contribution to i,f,o,c in one go
+  ifoc_xt_contrib = nn.Linear(input_size, hidden_size*2)(xt)
+
+  -- compute i,f
+  if_xt_contrib = nn.BatchNarrow(1,1,hidden_size, 1)(ifoc_xt_contrib)
+  i_f = nn.Sigmoid()(nn.CAddTable()({if_xt_contrib, if_stm1_contrib}))
+  i = nn.BatchNarrow(1,1,hidden_size/2,1)(i_f)
+  f = nn.BatchNarrow(1,hidden_size/2 + 1, hidden_size/2, 1)(i_f)
+
+  -- compute c
+  c_xt_contrib = nn.BatchNarrow(1,hidden_size/2*3+1, hidden_size/2, 1)(ifoc_xt_contrib)
+  c_htm1_contrib = nn.Linear(hidden_size/2, hidden_size/2)(htm1)
+  c = nn.CAddTable()({nn.CMulTable()({f, ctm1}), nn.CMulTable()({i,nn.Tanh()(nn.CAddTable()({c_xt_contrib, c_htm1_contrib}))})})
+
+  -- compute o
+  o_htm1_contrib = nn.Linear(hidden_size/2, hidden_size/2)(htm1)
+  o_c_contrib = nn.Linear(hidden_size/2, hidden_size/2)(c)
+  o_xt_contrib = nn.BatchNarrow(1,hidden_size+1,hidden_size/2, 1)(ifoc_xt_contrib)
+  o = nn.Sigmoid()(nn.CAddTable()({o_htm1_contrib, o_c_contrib, o_xt_contrib}))
+
+  -- compute h
+  h = nn.CMulTable()({o, nn.Tanh()(c)})
+  -- join the two to create s
+  s = nn.JoinTable(1,1)({h,c})
+  return nn.gModule({xt,stm1},{s})
+end
+
+local LSTM, parent = torch.class('nn.LSTM','nn.Recurrent')
+function LSTM:__init(input_size, hidden_size,sequence_len, reverse,h0, learn_h0)
+  h0 = h0 or torch.zeros(hidden_size)
+  local function LSTMStepCall()
+    return LSTMStep(input_size, hidden_size)
+  end
+  parent.__init(self, LSTMStepCall(), h0, sequence_len, reverse, learn_h0)
+end
+
