@@ -264,6 +264,10 @@ function Seq2SeqDataset:next_batch()
   return self.source_batches[real_index], self.target_batches[real_index]
 end
 
+function Seq2SeqDataset:size()
+  return #self.source_batches
+end
+
 function Seq2SeqDataset:tensor_to_string(tensor, ds)
   assert(ds=='source' or ds=='target')
   if tensor:dim() == 1 then

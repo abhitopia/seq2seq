@@ -13,8 +13,8 @@ end
 
 -- the input now only expects an initial state, nothing else, so an input_size vector.
 function BeamSearch:forward(input)
-  print("warning: only beam search of beamlength 1 is currently implemented.")
-  print("warning: only works on single inputs currently")
+--  print("warning: only beam search of beamlength 1 is currently implemented.")
+--  print("warning: only works on single inputs currently")
   local outputs = {}
 
   local htm1 = input
@@ -25,14 +25,13 @@ function BeamSearch:forward(input)
     local ht = self.stepModule:updateOutput({inputt, htm1})
     local outputt = self:sampleOutput(ht)
     table.insert(outputs, outputt)
-    print(outputt)
     if self:endCondition(outputt) then break end
     inputt=self:nextInput(outputt)
     htm1=ht
     curr=curr+1
   end
 
-  return torch.Tensor(outputs)
+  return torch.Tensor(outputs):type('torch.ShortTensor')
 
 
 end
@@ -55,6 +54,5 @@ function BeamSearch:nextInput(outputt)
 end
 
 function BeamSearch:firstInput()
-  print(self.SOS)
   return self.lookupTable:forward(torch.ones(1)*self.SOS)[1]
 end
