@@ -2,8 +2,12 @@ TODOS:
 - scripts to dl/process all the languages i can find
 - some light cv scripts for sentiment
 - bleu script
-- plotting
+- plotting (DONE) : dump losses seperately so that you don't ahve to load the whole network to plot
 - run 4*3 recurrent tests
 - beam search width
 - delete unused options from all files
 - code big seq2seq
+- why no SPAIRS warning while loading dev set?
+- lowercase!!!
+- flip source sentence
+- serialize as cpu-tensors

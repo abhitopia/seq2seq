@@ -126,9 +126,12 @@ function Recurrent:updateGradInput_(h0, input, gradOutput)
 
   return self.gradh0, self.gradInputTensor
 end
+function istable(x)
+  return type(x) == 'table' and not torch.typename(x)
+end
 
 function Recurrent:updateOutput(input)
-  if type(input)=='table' then
+  if istable(input) then
     self:setupTableInput()
     return self:updateOutput_(input[1], input[2])
   else
@@ -145,8 +148,9 @@ function Recurrent:setupTableInput()
     self.gradh0 = self.gradInput.new()
     self.gradInput = {self.gradh0, self.gradInputTensor}
     self.set=true
+    self.tab='table'
   else
-    if not (type(self.gradInput) == 'table') then
+    if not istable(self.gradInput) then
       error("didnt recieve table input but expected to")
     end
   end
@@ -158,8 +162,9 @@ function Recurrent:setupTensorInput()
     -- this is a bit of a hack
     self.gradh0=self.bias.new()
     self.set=true
+    self.tab='tensor'
   else
-    if (type(self.gradInput)=='table') then
+    if istable(self.gradInput) then
       error("grad input was a table at some point")
     end
   end

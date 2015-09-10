@@ -24,9 +24,10 @@ cmd:text('Train sequence to sequence learning')
 cmd:text()
 cmd:text('Options')
 -- data
-cmd:option('-train_data_dir','data/SentimentPTBTrees/binary/train','train data directory, should contain source.txt and target.txt')
-cmd:option('-test_data_dir', 'data/SentimentPTBTrees/binary/test', 'test data directory, should contain source.txt and target.txt')
-cmd:option('-dev_data_dir', 'data/SentimentPTBTrees/binary/dev', 'dev data directory, should contain source.txt and target.txt')
+cmd:option('-train_source_text','data/SentimentPTBTrees/binary/train/source.txt','train source file')
+cmd:option('-train_target_text','data/SentimentPTBTrees/binary/train/target.txt','train target file')
+cmd:option('-dev_source_text','data/SentimentPTBTrees/binary/dev/source.txt','dev source file')
+cmd:option('-dev_target_text','data/SentimentPTBTrees/binary/dev/target.txt','dev target file')
 cmd:option('-truncate_source_vocab_to', 20000, 'max vocab size of the source text')
 cmd:option('-truncate_target_vocab_to', 20000, 'max vocab size of the target text')
 -- model params
@@ -37,10 +38,10 @@ cmd:option('-hidden_size', 200, 'hidden dimension of recurrent nets')
 cmd:option('-source_glove_vectors', 'data/GloveVectors/glove.6B.100d.txt', 'where to load source glove vectors from')
 cmd:option('-target_glove_vectors', false, 'where to load target glove vectors from')
 cmd:option('-learning_rate',2e-3,'learning rate')
-cmd:option('-learning_rate_decay',0.97,'learning rate decay')
-cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
-cmd:option('-decay_rate',0.95,'decay rate for rmsprop')
-cmd:option('-dropout',0,'dropout for regularization, used after each RNN hidden layer. 0 = no dropout')
+--jcmd:option('-learning_rate_decay',0.97,'learning rate decay')
+--cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
+--cmd:option('-decay_rate',0.95,'decay rate for rmsprop')
+--cmd:option('-dropout',0,'dropout for regularization, used after each RNN hidden layer. 0 = no dropout')
 cmd:option('-batch_size',20,'number of sequences to train on in parallel')
 cmd:option('-max_epochs',50,'number of full passes through the training data')
 cmd:option('-grad_clip',5,'clip gradients at this value')
@@ -64,22 +65,7 @@ opt = cmd:parse(arg)
 torch.manualSeed(opt.seed)
 
 -- initialize cunn/cutorch for training on the GPU and fall back to CPU gracefully
-if opt.gpuid >= 0 then
-    local ok, cunn = pcall(require, 'cunn')
-    local ok2, cutorch = pcall(require, 'cutorch')
-    if not ok then print('package cunn not found!') end
-    if not ok2 then print('package cutorch not found!') end
-    if ok and ok2 then
-        print('using CUDA on GPU ' .. opt.gpuid .. '...')
-        cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
-        cutorch.manualSeed(opt.seed)
-    else
-        print('If cutorch and cunn are installed, your CUDA toolkit may be improperly configured.')
-        print('Check your CUDA toolkit installation, rebuild cutorch and cunn, and try again.')
-        print('Falling back on CPU mode')
-        opt.gpuid = -1 -- overwrite user setting
-    end
-end
+utils.cuda_check(opt)
 
 -- create the data loader classes
 print(opt.batch_size)
@@ -236,7 +222,7 @@ for i = 1, iterations do
     --local epoch = i / loader.ntrain
 
     local timer = torch.Timer()
-    local _, loss = optim.adagrad(ftrain, params, optim_state)
+    local _, loss = optim.rmsprop(ftrain, params, optim_state)
     local time = timer:time().real
 
     local train_loss = loss[1] -- the loss is inside a list, pop it

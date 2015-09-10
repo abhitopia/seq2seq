@@ -12,6 +12,7 @@ require 'gnuplot'
 require 'nngraph'
 require 'Seq2SeqDataset'
 models = require 'models/'
+utils = require 'utils/'
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -20,10 +21,14 @@ cmd:text()
 cmd:text('Options')
 cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get written')
 cmd:option('-iteration', -1, 'iteration to load. -1 means most recent iteration.')
+cmd:option('-gpuid', 0, 'gpu to use. -1 for no gpu.')
+cmd:option('-seed', 05760506, 'random seed')
 cmd:text()
 
 -- parse input params
 opt = cmd:parse(arg)
+utils.check_cuda(opt)
+
 -- overwrite -1 iteration with the most recent iteration
 if opt.iteration == -1 then
   local f = torch.DiskFile(string.format("%s/iterlast.t7", opt.checkpoint_dir), 'r')
