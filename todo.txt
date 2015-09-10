@@ -1,13 +1,15 @@
 TODOS:
-- scripts to dl/process all the languages i can find
-- some light cv scripts for sentiment
+- scripts to dl/process all the languages i can find (EUROPARL DONE)
+- some light cv scripts for sentiment ( DONE )
 - bleu script
 - plotting (DONE) : dump losses seperately so that you don't ahve to load the whole network to plot
 - run 4*3 recurrent tests
 - beam search width
 - delete unused options from all files
 - code big seq2seq
-- why no SPAIRS warning while loading dev set?
-- lowercase!!!
+- why no SPAIRS warning while loading dev set? ( DONE )
+- lowercase!!! ( DONE IN PYTHON)
 - flip source sentence
 - serialize as cpu-tensors
+- dump batches along w/ params for re-loading
+

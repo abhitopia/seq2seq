@@ -82,27 +82,9 @@ function Seq2SeqDataset:__init(data_dir, batchsize, truncate_source_vocab_to, tr
         run_prepro = true
     else
         run_prepro=false
-        --[[ The commented out stuff below this is some intense checking, maybe add that later before release]]
-        -- [[ TODO ]] 
-        -- check if the input file was modified since last time we 
-        -- ran the prepro. if so, we have to rerun the preprocessing
-        --local source_attr = lfs.attributes(source_file)
-        --local target_attr = lfs.attributes(target_file)
-        --local vocab_attr = lfs.attributes(vocab_file) -- dont need to check other than vocab bc all made at same time
-        --local source_tensor_attr = lfs.attributes(source_tensor_file)
-        --local target_tensor_attr = lfs.attributes(target_tensor_file)
-        --if source_attr.modification > vocab_attr.modification or source_attr.modification > source_tensor_attr.modification or source_attr.modification > target_tensor_attr.modification then
-        --    print('Looks like source.txt has been changined. Re-running preprocessing...')
-        --    run_prepro = true
-        --end
-        --if target_attr.modification > vocab_attr.modification or target_attr.modification > source_tensor_attr.modification or target_attr.modification > target_tensor_attr.modification then
-        --    print('Looks like target.txt has been changed. Re-running preprocessing...')
-        --    run_prepro = true
-        --end
     end
 
     if run_prepro then
-        -- preprocess into vocab file, vocab counts file, source lengths file, and target lengths file
         print('one-time setup: preprocessing input text files ' .. source_file .. ' and '.. target_file..'...')
         text_to_vocab(source_file, source_counts_file, source_lengths_file)
         text_to_vocab(target_file, target_counts_file, target_lengths_file)
@@ -130,7 +112,6 @@ function Seq2SeqDataset:__init(data_dir, batchsize, truncate_source_vocab_to, tr
       end
 
       self.target_i2v = {}
-      print("YOU SHOULD MAKE SURE THAT THIS SPAIRS FUNCTION WORKS YOU JUST COPY PASTED IT")
       for k,v in spairs(target_counts, function(t,a,b) return t[a]>t[b] end) do
           table.insert(self.target_i2v, k)
           if #self.target_i2v >= truncate_target_vocab_to then break end

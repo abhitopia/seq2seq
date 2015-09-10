@@ -286,7 +286,7 @@ end
 -- stm1: state of the LSTM at time t-1, which is the concatenation of the htm1 and ctm1
 -- htm1: actual output of the LSTM at time t-1
 -- ctm1: memory cell of the LSTM at time t-1
-local function LSTMStep(input_size, hidden_size, batched)
+local function LSTMStep(input_size, hidden_size)
   xt = nn.Identity()()
   stm1 = nn.Identity()()
   htm1 = nn.BatchNarrow(1,1,hidden_size/2,1)(stm1)

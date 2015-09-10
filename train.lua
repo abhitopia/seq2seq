@@ -24,10 +24,8 @@ cmd:text('Train sequence to sequence learning')
 cmd:text()
 cmd:text('Options')
 -- data
-cmd:option('-train_source_text','data/SentimentPTBTrees/binary/train/source.txt','train source file')
-cmd:option('-train_target_text','data/SentimentPTBTrees/binary/train/target.txt','train target file')
-cmd:option('-dev_source_text','data/SentimentPTBTrees/binary/dev/source.txt','dev source file')
-cmd:option('-dev_target_text','data/SentimentPTBTrees/binary/dev/target.txt','dev target file')
+cmd:option('-train_data_dir','data/SentimentPTBTrees/binary/train/','train data dir. should contain source.txt and train.txt')
+cmd:option('-dev_data_dir','data/SentimentPTBTrees/binary/dev/','dev data dir. should contain source.txt and train.txt')
 cmd:option('-truncate_source_vocab_to', 20000, 'max vocab size of the source text')
 cmd:option('-truncate_target_vocab_to', 20000, 'max vocab size of the target text')
 -- model params
@@ -133,7 +131,7 @@ function ftrain(x)
     -- really, if the batch dimenson was trailing, or if the arrays were stored column major, this would be simpler,
     -- as the desired memory would be contiguous anyways, and you'd get the best of both worlds.
     local target_no_sos = target:narrow(token_dim, 2, target:size(token_dim)-1):contiguous()
-    target_no_sos:resize(target_no_sos:size(1)*target_no_sos:size(2))
+    target_no_sos:resize(target_no_sos:size(1)*target_no_sos:size(2)) -- un-batch for nn's criterions and linear module TODO: view instead? is there a diff?
     local target_no_eos = target:narrow(token_dim, 1, target:size(token_dim)-1):contiguous()
     if opt.gpuid >= 0 then -- ship the input arrays to GPU
         -- have to convert to float because integers can't be cuda()'d
